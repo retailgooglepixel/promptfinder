@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Prompt-Discovery Tool</title>
+    <!-- Lade Tailwind CSS CDN für einfachem Hosting (ideal für GitHub Pages) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Konfiguriere Tailwind für benutzerdefinierte Farben und Schriftart -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'deep-blue': '#02042A', // Tiefer Blauton für den Hintergrund
+                        'gemini-gold': '#FBBF24', // Goldener Akzent
+                        'gemini-teal': '#00ADB5', // Akzentfarbe
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        /* CSS für subtile Animationen und Responsivität */
+        .prompt-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+        /* Responsives Hover-Feedback */
+        .prompt-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(251, 191, 36, 0.3);
+        }
+        /* Akkordeon Animation */
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        .accordion-content.active {
+            max-height: 500px; /* Muss groß genug sein, um den Inhalt anzuzeigen */
+            transition: max-height 0.5s ease-in-out;
+        }
+        /* Lade-Spinner Animation */
+        .loading-spinner {
+            border-top-color: #FBBF24;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        /* Fix für Dropdown-Hintergrund auf manchen Browsern */
+        #season-select {
+            background-image: none; /* Entfernt native Dropdown-Pfeil-Hintergründe, wenn nötig */
+        }
+    </style>
+</head>
+<body class="bg-deep-blue font-sans text-white min-h-screen p-4 sm:p-8">
+
+    <!-- Header & Titel -->
+    <header class="text-center mb-12">
+        <h1 id="main-title" class="text-4xl sm:text-5xl font-extrabold text-gemini-gold mb-2">
+            Gemini & Pixel: Deine KI-Inspiration
+        </h1>
+        <p class="text-lg text-gray-300 max-w-3xl mx-auto">
+            Entdecke saisonale Prompts, die das Beste aus Gemini und deinem Google Pixel herausholen.
+        </p>
+
+        <!-- Saisonauswahl Dropdown -->
+        <div class="mt-6">
+            <label for="season-select" class="block text-gray-300 mb-2 font-medium">Anlass wählen:</label>
+            <select id="season-select" onchange="changeSeason(this.value)"
+                    class="bg-deep-blue border border-gemini-teal text-white p-3 rounded-lg focus:ring-gemini-gold focus:border-gemini-gold transition duration-150 w-full sm:w-64 appearance-none">
+                <option value="Weihnachten">Weihnachten</option>
+                <option value="Silvester">Silvester & Neujahr</option>
+                <option value="Urlaub">Sommer & Urlaub</option>
+                <option value="Neues Jahr">Vorsätze für das Neue Jahr</option>
+            </select>
+        </div>
+    </header>
+
+    <!-- Hauptbereich: Prompt Discovery und Ergebnis-Anzeige -->
+    <!-- Max-Breite und Zentrierung für große Bildschirme hinzugefügt -->
+    <main class="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+
+        <!-- Linke Spalte: Prompt-Karten (lg:col-span-2) -->
+        <div class="lg:col-span-2 space-y-6">
+            <h2 id="prompt-section-title" class="text-2xl font-bold text-white mb-4 border-b-2 border-gemini-teal pb-2">Aktuelle Prompt-Ideen</h2>
+            
+            <!-- Prompt-Karten Container -->
+            <div id="prompt-cards-container" class="space-y-4">
+                <!-- Die Prompt-Karten werden hier dynamisch eingefügt -->
+            </div>
+        </div>
+
+        <!-- Rechte Spalte: Detailansicht und FAQ (lg:col-span-1) -->
+        <div class="lg:col-span-1 space-y-8 mt-6 lg:mt-0">
+            
+            <!-- Detailansicht (Ergebnis-Anzeige) -->
+            <div class="bg-white/10 p-6 rounded-xl shadow-2xl border border-gemini-teal/50">
+                <h2 class="text-xl font-bold mb-4 text-gemini-gold border-b border-gemini-gold/50 pb-2">Prompt-Detailansicht</h2>
+                
+                <div id="detail-view" class="space-y-4 text-gray-200">
+                    <p id="detail-placeholder" class="text-center italic text-gray-400">
+                        Wähle links eine Prompt-Idee aus, um alle Details zu sehen.
+                    </p>
+                    <h3 id="detail-title" class="text-2xl font-semibold hidden"></h3>
+                    <div id="detail-content" class="space-y-4 hidden">
+                        <div class="bg-white/10 p-3 rounded-lg">
+                            <p class="text-sm text-gemini-gold font-medium">Prompt-Text:</p>
+                            <!-- word-break hinzugefügt, um lange Prompts auf Mobilgeräten zu handhaben -->
+                            <p id="detail-prompt" class="italic text-lg break-words"></p>
+                        </div>
+                        <div class="bg-white/10 p-3 rounded-lg">
+                            <p class="text-sm text-gemini-gold font-medium">Empfohlenes Modell/Tool:</p>
+                            <p id="detail-model" class="font-bold"></p>
+                        </div>
+                        <p id="detail-explanation"></p>
+
+                        <!-- Gemini API Features -->
+                        <div class="flex flex-col space-y-3 mt-4">
+                            <button id="optimize-prompt-btn"
+                                    class="w-full bg-gemini-teal hover:bg-gemini-teal/80 text-deep-blue font-bold py-2 px-4 rounded-lg shadow-md transition duration-200 disabled:opacity-50"
+                                    onclick="generateOptimizedPrompt()">
+                                ✨ Prompt optimieren (Zum Super-Prompt)
+                            </button>
+                            <button id="ai-explanation-btn"
+                                    class="w-full bg-gemini-gold hover:bg-gemini-gold/80 text-deep-blue font-bold py-2 px-4 rounded-lg shadow-md transition duration-200 disabled:opacity-50"
+                                    onclick="generateAiExplanation()">
+                                ✨ KI-Erklärung anfordern
+                            </button>
+                        </div>
+                        
+                        <!-- Output Area -->
+                        <div id="output-area" class="mt-6 p-4 bg-deep-blue rounded-lg border border-gemini-gold/50 hidden">
+                            <p id="output-title" class="font-bold text-gemini-gold mb-2"></p>
+                            <div id="output-text" class="text-gray-300 whitespace-pre-wrap text-sm"></div>
+                            <div id="output-loading" class="text-center hidden">
+                                <div class="loading-spinner border-4 border-gray-700 h-6 w-6 rounded-full mx-auto"></div>
+                                <p class="mt-2 text-sm text-gemini-teal">Gemini arbeitet...</p>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- FAQ-Sektion -->
+            <div class="bg-white/10 p-6 rounded-xl shadow-2xl border border-gemini-teal/50">
+                <h2 class="text-xl font-bold mb-4 text-gemini-gold border-b border-gemini-gold/50 pb-2">FAQs & Vertiefung</h2>
+                
+                <div class="space-y-3" id="faq-container">
+                    <!-- FAQs werden hier dynamisch eingefügt -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // --- Globale Datenstruktur für Prompts und FAQs ---
+        const ALL_CONTENT = {
+            "Weihnachten": {
+                title: "Weihnachtliche Prompt-Ideen",
+                prompts: [
+                    { id: "geschenk", title: "🎁 Der perfekte Geschenkefinder", model: "Gemini-Apps (Deep Research)",
+                      prompt: "Finde 5 einzigartige, personalisierte Geschenkideen für meinen Vater, der Hobbykoch ist, gerne wandert und gerade ein Pixel 10 bekommen hat. Budget: max. 150 €.",
+                      explanation: "Gemini nutzt **Deep Research**, um aktuelle, bewertete Produkte und relevante Links zu finden. Ein Klick und die Liste ist fertig.",
+                      faqs: ["faq-deep-research", "faq-apps", "faq-updates"] },
+                    { id: "fotos", title: "✨ Magische Festtagsfotos", model: "KI-basierte Fotografie (Tensor G5)",
+                      prompt: "Ich habe ein Foto mit Lichtern im Hintergrund gemacht. Reduziere das Pixelrauschen und verstärke den Bokeh-Effekt der Lichter, ohne die Gesichter unscharf zu machen.",
+                      explanation: "Nutzt die **KI-basierte Rauschunterdrückung** und die **Magische Bearbeitung**, um Tiefenschärfe nachträglich zu optimieren. Keine komplizierte Software nötig – alles auf dem Pixel.",
+                      faqs: ["faq-autobest", "faq-kamera-coach", "faq-updates"] },
+                    { id: "rezept", title: "🍽️ Menüplanung mit Einschränkungen", model: "Gemini-Apps (App-übergreifende Aktionen)",
+                      prompt: "Ich plane ein Weihnachtsmenü für 8 Personen, darunter 2 Vegetarier und 1 Person mit Nussallergie. Erstelle ein 3-Gänge-Menü und generiere sofort eine optimierte Einkaufsliste.",
+                      explanation: "Gemini verarbeitet komplexe Einschränkungen und generiert sofort eine **strukturierte Liste**, die direkt in Google Keep oder Google Sheets exportiert werden kann.",
+                      faqs: ["faq-apps", "faq-deep-research", "faq-akku"] },
+                    { id: "video", title: "🎥 Weihnachts-Video-Gruß", model: "Google AI Pro (Veo 3 Fast)",
+                      prompt: "Generiere ein **kurzes, festliches 8-Sekunden-Video** mit sanft fallendem Schnee und einem kurzen, warmen 'Frohe Weihnachten'-Text in Schreibschrift. Ich möchte es über WhatsApp verschicken.",
+                      explanation: "Nutzt die **Video-Generierung** von Gemini (Veo Fast, mit Google AI Pro Abo) zur Erstellung von hochwertigen Social-Media-Assets direkt auf dem Gerät.",
+                      faqs: ["faq-veo-video", "faq-apps", "faq-updates"] }
+                ]
+            },
+            "Silvester": {
+                title: "Silvester & Neujahrs-Prompt-Ideen",
+                prompts: [
+                    { id: "partyplan", title: "🎉 Partyplanung und Checkliste", model: "Gemini-Apps (Planung)",
+                      prompt: "Erstelle eine detaillierte Checkliste für eine Silvesterparty mit 15 Gästen. Füge Punkte für Deko, Snacks und Spiele hinzu.",
+                      explanation: "Gemini hilft bei der **mehrstufigen Planung** und Organisation, die direkt in Ihren Kalender integriert werden kann.",
+                      faqs: ["faq-apps", "faq-deep-research", "faq-akku"] },
+                    { id: "firework", title: "🎆 Perfekte Feuerwerk-Fotos", model: "KI-basierte Fotografie (Pro-Modi)",
+                      prompt: "Optimiere die Kameraeinstellungen für ein Feuerwerk-Foto in der 'Pro-Funktionen'-App, um die Lichtspuren scharf zu erfassen.",
+                      explanation: "Nutzt die **Pro-Funktionen** (manuelle Einstellungen) und Gemini, um die besten Ergebnisse bei schwierigen Lichtverhältnissen zu erzielen, wie sie Thomas und Emilia suchen.",
+                      faqs: ["faq-kamera-coach", "faq-updates", "faq-autobest"] },
+                    { id: "gruss", title: "✍️ Individuelle Neujahrsgrüße", model: "Gemini (Kreativität)",
+                      prompt: "Schreibe 5 kurze, humorvolle Neujahrsgrüße für WhatsApp und 5 formelle Grüße für E-Mail-Kontakte.",
+                      explanation: "Gemini hilft beim Verfassen von Inhalten und spart Zeit beim Versenden von personalisierten Grüßen an unterschiedliche Zielgruppen.",
+                      faqs: ["faq-updates", "faq-akku"] }
+                ]
+            },
+            "Urlaub": {
+                title: "Sommer & Urlaubs-Prompt-Ideen",
+                prompts: [
+                    { id: "route", title: "🗺️ Interaktive Reiseroute", model: "Gemini-Apps (Maps Integration)",
+                      prompt: "Erstelle eine 4-tägige Reiseroute durch Skandinavien mit Fokus auf Fjorde und Fähren. Füge Öffnungszeiten und Wettervorhersage hinzu.",
+                      explanation: "Dank der Integration in Google Maps kann Gemini eine detaillierte, interaktive Reiseroute erstellen, die alle wichtigen Informationen enthält.",
+                      faqs: ["faq-apps", "faq-kamera-coach", "faq-akku"] },
+                    { id: "language", title: "🗣️ Live-Übersetzung beim Anruf", model: "Live-Übersetzung (Gemini Nano)",
+                      prompt: "Übersetze live mein Gespräch mit dem Hotelier in Schweden und gib seine Antwort in meiner Stimme wieder.",
+                      explanation: "Die **Live-Übersetzung** (Sprachfunktionen) auf dem Pixel ermöglicht authentische Telefongespräche in verschiedenen Sprachen, angetrieben durch den **Tensor G5**.",
+                      faqs: ["faq-g5-chip", "faq-updates", "faq-live-cam"] },
+                    { id: "pack", title: "🧳 Packliste nach Wetterlage", model: "Gemini (Kontextsensitivität)",
+                      prompt: "Erstelle eine Packliste für eine Woche in Barcelona im August. Ich plane Strandtage, Sightseeing und zwei formelle Abendessen.",
+                      explanation: "Gemini berücksichtigt den Kontext (Ort, Datum, Aktivitäten) und generiert eine maßgeschneiderte Liste, die direkt in Google Keep exportiert werden kann.",
+                      faqs: ["faq-apps", "faq-akku", "faq-live-cam"] }
+                ]
+            },
+            "Neues Jahr": {
+                title: "Vorsätze für das Neue Jahr",
+                prompts: [
+                    { id: "fitness", title: "🏋️ Personalisiertes Training", model: "Gemini-Apps (Fitbit Integration)",
+                      prompt: "Erstelle einen 4-wöchigen Trainingsplan für mehr Ausdauer, basierend auf meinen letzten Läufen, die in Fitbit gespeichert sind. Halte die Einheiten unter 45 Minuten.",
+                      explanation: "Gemini kann auf verbundene Apps wie **Fitbit Premium** zugreifen (6 Monate kostenlos mit Pixel), um personalisierte Pläne basierend auf echten Daten zu erstellen.",
+                      faqs: ["faq-apps", "faq-akku", "faq-updates"] },
+                    { id: "finance", title: "💰 Finanzielle Übersicht", model: "Gemini (Zusammenfassung)",
+                      prompt: "Fasse meine E-Mails des letzten Monats mit dem Stichwort 'Abo-Rechnung' zusammen und erstelle eine Tabelle mit monatlichen Ausgaben.",
+                      explanation: "Gemini kann E-Mails aus **Gmail zusammenfassen** und strukturierte Listen erstellen, um einen schnellen Überblick über die Finanzen zu erhalten (ideal für Nadja die Geschäftsfrau).",
+                      faqs: ["faq-apps", "faq-deep-research", "faq-updates"] }
+                ]
+            }
+        };
+
+        // --- Allgemeine und Kontext-FAQs ---
+        const ALL_FAQS = {
+            // Allgemeine FAQs
+            "faq-autobest": { title: "Wie sorge ich dafür, dass auf Gruppenfotos alle lächeln?", content: 'Nutzen Sie die KI-Funktion **"Automatische Beste Aufnahme"** im Google Fotos-Editor. Die KI wählt automatisch das beste Lächeln jeder Person aus einer Serie von Aufnahmen und kombiniert sie nahtlos zu einem perfekten Bild.' },
+            "faq-updates": { title: "Wie lange ist mein Pixel 10 aktuell und sicher?", content: 'Die Pixel 10 Serie bietet **7 Jahre lang Betriebssystem- und Sicherheitsupdates**. Das Gerät bleibt dadurch lange auf dem neuesten Stand und die KI-Funktionen werden durch regelmäßige Pixel Drops automatisch aktualisiert und verbessert.' },
+            "faq-live-cam": { title: "Was ist der Vorteil von Gemini Live mit Kamera?", content: 'Mit **Gemini Live mit Kamera** können Sie Ihre Kamera in einer Gemini-Unterhaltung teilen, um **Live-Feedback in Echtzeit** über das zu erhalten, was Sie sehen. Gemini kann bewegte Inhalte (wie Videos) und den visuellen Kontext verstehen und darauf reagieren.' },
+            "faq-akku": { title: "Wie lange hält der Akku bei starker KI-Nutzung?", content: 'Die Pixel 10 Pro-Modelle sind für die **längste Akkulaufzeit** auf einem Pixel optimiert und halten über 24 Stunden. Der **Google Tensor G5** ist speziell für KI konzipiert und sorgt für maximale Effizienz.' },
+            "faq-g5-chip": { title: "Welchen Vorteil bringt der Tensor G5 für die KI?", content: 'Der neue **Google Tensor G5** verfügt über eine **60 % leistungsstärkere TPU** (Tensor Processing Unit), die speziell für die fortschrittlichen KI-Funktionen auf dem Gerät (z.B. Live-Übersetzung) entwickelt wurde.' },
+
+            // Kontextbezogene FAQs
+            "faq-deep-research": { title: "Was bedeutet 'Deep Research'?", content: "Deep Research ist eine Funktion von Gemini (Google AI Pro Abo), die detaillierte Berichte zu komplexen Themen erstellt und Quellenangaben aus Web-Quellen zitiert. Ideal für gut recherchierte Geschenkideen oder Planung." },
+            "faq-apps": { title: "Wie funktioniert die App-übergreifende Integration?", content: "Gemini kann Aktionen in Google-Apps (Gmail, Kalender, Maps) und Drittanbieter-Apps (Spotify, WhatsApp) ausführen, ohne dass Sie die Ansicht wechseln müssen. Fragen Sie Gemini einfach, und es erledigt die Aufgabe über die Apps hinweg." },
+            "faq-veo-video": { title: "Wie bekomme ich Zugriff auf die Video-Generierung?", content: 'Die **Video-Generierung** (Veo 3 Fast) ist Teil des **Google AI Pro Abos**. Beim Kauf eines Pixel 10 Pro oder Pro XL erhalten Sie dieses Abo für 1 Jahr ohne Zusatzkosten.' },
+            "faq-kamera-coach": { title: "Wie unterstützt mich der Kamera-Coach?", content: 'Der **Kamera-Coach** nutzt Gemini-Modelle, um das Ambiente in Echtzeit zu erkennen und schlägt den besten Blickwinkel, die ideale Beleuchtung und den geeigneten Kameramodus vor, damit Sie das Kamerasystem optimal nutzen können.' }
+        };
+
+        let activeSeason = "Weihnachten";
+        let activePromptId = null;
+
+        // --- Gemini API Konfiguration ---
+        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=";
+        const API_KEY = ""; // Canvas Runtime provides this
+
+        // 1. Hilfsfunktion für die API-Kommunikation mit Backoff
+        async function fetchWithBackoff(url, payload, retries = 3, delay = 1000) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url + API_KEY, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.ok) {
+                        return await response.json();
+                    } else if (response.status === 429 && i < retries - 1) { // Rate limit
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        delay *= 2; // Exponential backoff
+                        continue;
+                    } else {
+                        throw new Error(`API call failed with status: ${response.status}`);
+                    }
+                } catch (error) {
+                    if (i === retries - 1) {
+                        throw error;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2;
+                }
+            }
+        }
+
+        // 2. Gemini Feature: Prompt Optimierer
+        async function generateOptimizedPrompt() {
+            if (!activePromptId) return;
+            
+            const currentPrompts = ALL_CONTENT[activeSeason].prompts;
+            const promptData = currentPrompts.find(p => p.id === activePromptId);
+            const originalPrompt = promptData.prompt;
+            const model = promptData.model;
+            
+            const outputArea = document.getElementById('output-area');
+            const outputTitle = document.getElementById('output-title');
+            const outputText = document.getElementById('output-text');
+            const outputLoading = document.getElementById('output-loading');
+
+            // UI-Update: Loading starten
+            outputArea.classList.remove('hidden');
+            outputTitle.textContent = "Optimierter Prompt (Super-Prompt):";
+            outputText.textContent = "";
+            outputLoading.classList.remove('hidden');
+
+            // Buttons deaktivieren
+            document.getElementById('optimize-prompt-btn').disabled = true;
+            document.getElementById('ai-explanation-btn').disabled = true;
+
+            const userQuery = `Nimm diesen kurzen Prompt: "${originalPrompt}" und wandle ihn in einen ausführlichen, optimierten "Super-Prompt" um. Der neue Prompt sollte maximal 50 Wörter lang sein und alle relevanten Details und Anweisungen enthalten, die für das empfohlene Modell (${model}) nötig sind, um das bestmögliche Ergebnis zu erzielen. Gib nur den optimierten Prompt zurück, ohne Einleitungssatz.`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: "Du bist ein KI-Prompt-Experte. Deine Aufgabe ist es, kurze Anfragen in hochdetaillierte Anweisungen umzuwandeln. Antworte in Deutsch." }] }
+            };
+
+            try {
+                const result = await fetchWithBackoff(API_URL, payload);
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "Fehler beim Generieren des Prompts.";
+                outputText.textContent = text.trim();
+            } catch (error) {
+                outputText.textContent = `Fehler beim Abrufen der KI-Antwort: ${error.message}`;
+                console.error("Gemini API Error:", error);
+            } finally {
+                // UI-Update: Loading beenden und Buttons reaktivieren
+                outputLoading.classList.add('hidden');
+                document.getElementById('optimize-prompt-btn').disabled = false;
+                document.getElementById('ai-explanation-btn').disabled = false;
+            }
+        }
+
+        // 3. Gemini Feature: KI-Erklärung
+        async function generateAiExplanation() {
+            if (!activePromptId) return;
+
+            const currentPrompts = ALL_CONTENT[activeSeason].prompts;
+            const promptData = currentPrompts.find(p => p.id === activePromptId);
+            const title = promptData.title;
+            const model = promptData.model;
+
+            const outputArea = document.getElementById('output-area');
+            const outputTitle = document.getElementById('output-title');
+            const outputText = document.getElementById('output-text');
+            const outputLoading = document.getElementById('output-loading');
+
+            // UI-Update: Loading starten
+            outputArea.classList.remove('hidden');
+            outputTitle.textContent = "KI-Erklärung: Warum dieses Tool?";
+            outputText.textContent = "";
+            outputLoading.classList.remove('hidden');
+
+            // Buttons deaktivieren
+            document.getElementById('optimize-prompt-btn').disabled = true;
+            document.getElementById('ai-explanation-btn').disabled = true;
+
+            const userQuery = `Erkläre in einem knappen Absatz (maximal 6 Sätze), warum der Anwendungsfall "${title}" am besten durch das Tool oder Modell "${model}" von Google gelöst wird. Fokussiere auf die Integration in das Pixel-Ökosystem und den Nutzen für den Endanwender. Antworte in deutscher Sprache.`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: "Du bist ein Google KI-Experte. Deine Antwort muss kurz, präzise und überzeugend sein. Antworte in Deutsch." }] }
+            };
+
+            try {
+                const result = await fetchWithBackoff(API_URL, payload);
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "Fehler beim Generieren der Erklärung.";
+                outputText.textContent = text.trim();
+            } catch (error) {
+                outputText.textContent = `Fehler beim Abrufen der KI-Antwort: ${error.message}`;
+                console.error("Gemini API Error:", error);
+            } finally {
+                // UI-Update: Loading beenden und Buttons reaktivieren
+                outputLoading.classList.add('hidden');
+                document.getElementById('optimize-prompt-btn').disabled = false;
+                document.getElementById('ai-explanation-btn').disabled = false;
+            }
+        }
+
+
+        // 4. Saison wechseln und Inhalte neu laden
+        function changeSeason(season) {
+            activeSeason = season;
+            activePromptId = null; // Detailansicht zurücksetzen
+            loadPromptCards();
+            document.getElementById('detail-placeholder').classList.remove('hidden');
+            document.getElementById('detail-content').classList.add('hidden');
+            document.getElementById('detail-title').classList.add('hidden');
+            document.getElementById('output-area').classList.add('hidden'); // Output-Bereich verstecken
+
+            // Titel der Sektion anpassen
+            document.getElementById('prompt-section-title').textContent = ALL_CONTENT[season].title;
+            
+            // Generische FAQ anzeigen, bis ein Prompt ausgewählt wird
+            loadFaqs([]);
+        }
+
+        // 5. Initialisierung und Laden der Prompt-Karten
+        function loadPromptCards() {
+            const cardsContainer = document.getElementById('prompt-cards-container');
+            cardsContainer.innerHTML = ''; // Vorherige Karten entfernen
+            const prompts = ALL_CONTENT[activeSeason].prompts;
+
+            prompts.forEach(prompt => {
+                const card = document.createElement('div');
+                card.id = `card-${prompt.id}`;
+                // Setze die Klassen für das Design
+                card.className = 'prompt-card bg-white/5 p-6 rounded-xl shadow-lg border border-gemini-teal/30 hover:bg-white/10';
+                card.setAttribute('data-id', prompt.id);
+                card.innerHTML = `
+                    <h3 class="text-xl font-bold text-gemini-teal">${prompt.title}</h3>
+                    <p class="text-sm text-gray-400 mt-2">Empfohlen: <span class="font-semibold text-gemini-gold">${prompt.model}</span></p>
+                `;
+                
+                card.addEventListener('click', () => showPromptDetails(prompt.id));
+                cardsContainer.appendChild(card);
+            });
+             // FAQs laden (initially general ones)
+             loadFaqs([]);
+        }
+
+        // 6. Anzeige der Prompt-Details und Laden der Kontext-FAQs
+        function showPromptDetails(id) {
+            const currentPrompts = ALL_CONTENT[activeSeason].prompts;
+            const promptData = currentPrompts.find(p => p.id === id);
+            
+            if (!promptData) return;
+
+            activePromptId = id;
+
+            // Detailansicht aktualisieren
+            document.getElementById('detail-placeholder').classList.add('hidden');
+            document.getElementById('detail-content').classList.remove('hidden');
+            document.getElementById('detail-title').classList.remove('hidden');
+            document.getElementById('output-area').classList.add('hidden'); // Output-Bereich verstecken bei neuem Prompt
+
+            document.getElementById('detail-title').textContent = promptData.title;
+            document.getElementById('detail-prompt').textContent = promptData.prompt;
+            document.getElementById('detail-model').textContent = promptData.model;
+            document.getElementById('detail-explanation').innerHTML = promptData.explanation;
+
+            // Visuelles Feedback: Aktive Karte hervorheben
+            document.querySelectorAll('.prompt-card').forEach(card => {
+                card.classList.remove('border-gemini-gold', 'ring-2', 'ring-gemini-gold');
+            });
+            document.getElementById(`card-${id}`).classList.add('border-gemini-gold', 'ring-2', 'ring-gemini-gold');
+            
+            // Kontext-FAQs laden
+            loadFaqs(promptData.faqs);
+        }
+
+        // 7. FAQ Sektion dynamisch füllen
+        function loadFaqs(contextFaqIds) {
+            const faqContainer = document.getElementById('faq-container');
+            faqContainer.innerHTML = ''; // Bestehende FAQs entfernen
+
+            // 1. Allgemeine Basis-FAQs hinzufügen (immer sichtbar, wenn kein Prompt ausgewählt)
+            const generalFaqIds = ["faq-updates", "faq-akku", "faq-live-cam"];
+            const allFaqIds = activePromptId ? contextFaqIds : generalFaqIds;
+            
+            // Filtere Duplikate und gehe die IDs durch
+            const uniqueFaqIds = Array.from(new Set(allFaqIds));
+
+            uniqueFaqIds.forEach(id => {
+                const faq = ALL_FAQS[id];
+                if (faq) {
+                    const item = document.createElement('div');
+                    item.className = 'border-b border-gray-700 pb-2 accordion-item';
+                    item.innerHTML = `
+                        <button class="flex justify-between items-center w-full py-2 text-left font-semibold hover:text-gemini-gold transition duration-150" onclick="toggleAccordion('${id}')">
+                            ${faq.title}
+                            <span class="text-gemini-gold text-lg font-normal">+</span>
+                        </button>
+                        <div id="${id}" class="accordion-content">
+                            <p class="py-2 text-gray-300">${faq.content}</p>
+                        </div>
+                    `;
+                    faqContainer.appendChild(item);
+                }
+            });
+
+             // Wenn kein Prompt aktiv ist, zeige eine Aufforderung an
+            if (uniqueFaqIds.length === 0 && !activePromptId) {
+                 faqContainer.innerHTML = '<p class="text-center italic text-gray-400 py-4">Wähle eine Prompt-Idee, um vertiefende Fragen und Antworten zu sehen.</p>';
+            }
+        }
+
+        // 8. Akkordeon-Funktion
+        function toggleAccordion(id) {
+            const content = document.getElementById(id);
+            if (!content) return;
+
+            const button = content.previousElementSibling;
+            const span = button.querySelector('span');
+
+            if (content.classList.contains('active')) {
+                content.classList.remove('active');
+                span.textContent = '+';
+            } else {
+                // Schließe alle anderen offenen Akkordeons im FAQ-Container
+                document.querySelectorAll('#faq-container .accordion-content.active').forEach(item => {
+                    item.classList.remove('active');
+                    item.previousElementSibling.querySelector('span').textContent = '+';
+                });
+
+                content.classList.add('active');
+                span.textContent = '–';
+            }
+        }
+
+        // Starte die Anwendung, wähle Weihnachten als Standard
+        window.onload = function() {
+            // Setze das Dropdown auf den Startwert
+            document.getElementById('season-select').value = "Weihnachten";
+            // Lade die Inhalte
+            changeSeason("Weihnachten");
+        };
+
+    </script>
+</body>
+</html>
