@@ -29,7 +29,13 @@
         .prompt-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px rgba(251, 191, 36, 0.3); }
         .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
         .accordion-content.active { max-height: 500px; transition: max-height 0.5s ease-in-out; }
-        #season-select { background-image: none; }
+        
+        /* Dropdown Styling */
+        select option {
+            background-color: #02042A;
+            color: white;
+            padding: 10px;
+        }
     </style>
 </head>
 <body class="bg-deep-blue font-sans text-white min-h-screen p-4 sm:p-8">
@@ -42,15 +48,25 @@
             Entdecke saisonale Prompts, die das Beste aus Gemini und deinem Google Pixel herausholen.
         </p>
 
-        <div class="mt-6">
-            <label for="season-select" class="block text-gray-300 mb-2 font-medium">Anlass wählen:</label>
-            <select id="season-select" onchange="changeSeason(this.value)"
-                    class="bg-deep-blue border border-gemini-teal text-white p-3 rounded-lg focus:ring-gemini-gold focus:border-gemini-gold transition duration-150 w-full sm:w-64 appearance-none text-center sm:text-left">
-                <option value="Weihnachten">Weihnachten</option>
-                <option value="Silvester">Silvester & Neujahr</option>
-                <option value="Urlaub">Sommer & Urlaub</option>
-                <option value="Neues Jahr">Vorsätze für das Neue Jahr</option>
-            </select>
+        <!-- Dropdown Menu -->
+        <div class="mt-10 flex flex-col items-center">
+            <label for="season-select" class="block text-gemini-teal mb-3 font-bold text-lg uppercase tracking-wider">
+                Wähle deinen Anlass:
+            </label>
+            <div class="relative w-full sm:w-96">
+                <select id="season-select" onchange="changeSeason(this.value)"
+                        class="appearance-none w-full bg-white/10 border-2 border-gemini-teal/50 hover:border-gemini-gold text-white text-lg font-semibold py-4 px-6 pr-12 rounded-xl shadow-lg focus:outline-none focus:ring-4 focus:ring-gemini-gold/30 transition duration-200 cursor-pointer">
+                    <option value="Weihnachten">🎄 Weihnachten</option>
+                    <option value="Silvester">🎆 Silvester & Neujahr</option>
+                    <option value="Urlaub">☀️ Sommer & Urlaub</option>
+                    <option value="Neues Jahr">🚀 Vorsätze für das Neue Jahr</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gemini-gold">
+                    <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+            </div>
         </div>
     </header>
 
@@ -83,20 +99,11 @@
                         </div>
                         <p id="detail-explanation"></p>
 
-                        <!-- Buttons (Optimieren & Erklären) -->
-                        <div id="api-features-container" class="flex flex-col space-y-3 mt-4">
-                            <!-- Buttons werden dynamisch eingefügt -->
+                        <!-- Buttons & Info Bereich (Dynamisch gefüllt) -->
+                        <div id="api-features-container" class="mt-6">
+                            <!-- Hier werden jetzt Info-Text UND Buttons eingefügt -->
                         </div>
                         
-                        <!-- Hinweis Box -->
-                        <div id="output-area" class="mt-6 p-4 bg-deep-blue rounded-lg border border-gray-600/50">
-                            <p id="output-title" class="font-bold text-gemini-gold mb-2">💡 Tipp zur Nutzung</p>
-                            <div id="output-text" class="text-gray-400 text-sm">
-                                Da Gemini aus Sicherheitsgründen keine Texte per Link annimmt, <strong>kopieren wir den Text automatisch</strong> für dich. <br><br>
-                                Einfach im neuen Fenster <code>Strg + V</code> (oder Rechtsklick -> Einfügen) drücken!
-                            </div>
-                        </div>
-
                     </div>
                 </div>
 
@@ -246,15 +253,14 @@
             loadFaqs([]);
         }
 
-        // --- Neue Logik: Kopieren & Öffnen ---
+        // --- Logik: Kopieren & Öffnen ---
         function copyAndOpenGemini(text) {
             navigator.clipboard.writeText(text).then(() => {
-                // Bestätigung für den Nutzer
-                alert("✨ Text erfolgreich kopiert!\n\nGemini öffnet sich jetzt. Drücke dort einfach 'Strg + V' (oder Rechtsklick -> Einfügen), um den Prompt zu nutzen.");
+                // Bestätigung
+                alert("✨ Text kopiert!\n\nGemini öffnet sich jetzt. Drücke dort einfach 'Strg + V' (Einfügen).");
                 window.open("https://gemini.google.com/app", "_blank");
             }).catch(err => {
                 console.error('Fehler beim Kopieren:', err);
-                // Fallback, falls Kopieren nicht erlaubt ist
                 window.open("https://gemini.google.com/app", "_blank");
             });
         }
@@ -268,20 +274,29 @@
             const optimizationInstruction = `Ich habe diesen Prompt: "${promptData.prompt}". Bitte optimiere ihn zu einem detaillierten "Super-Prompt" für das Modell ${promptData.model}, damit ich das beste Ergebnis erhalte.`;
             const explanationInstruction = `Erkläre mir kurz und verständlich (maximal 5 Sätze), warum das Google Modell "${promptData.model}" besonders gut für den Anwendungsfall "${promptData.title}" auf einem Google Pixel geeignet ist.`;
 
-            // UI Update: Buttons rufen copyAndOpenGemini auf
+            // UI Update: Info-Box ÜBER den Buttons
             const apiContainer = document.getElementById('api-features-container');
             
-            // WICHTIG: Wir nutzen encodeURIComponent, damit Sonderzeichen im Text (wie "Anführungszeichen") das HTML nicht kaputt machen
             apiContainer.innerHTML = `
-                <button onclick="copyAndOpenGemini(decodeURIComponent('${encodeURIComponent(optimizationInstruction)}'))"
-                   class="w-full text-center bg-gemini-teal hover:bg-gemini-teal/80 text-deep-blue font-bold py-3 px-4 rounded-lg shadow-md transition duration-200 flex items-center justify-center gap-2">
-                    <span>🚀</span> Prompt kopieren & optimieren
-                </button>
-                
-                <button onclick="copyAndOpenGemini(decodeURIComponent('${encodeURIComponent(explanationInstruction)}'))"
-                   class="w-full text-center bg-gemini-gold hover:bg-gemini-gold/80 text-deep-blue font-bold py-3 px-4 rounded-lg shadow-md transition duration-200 flex items-center justify-center gap-2">
-                    <span>✨</span> Frage kopieren & Erklärung holen
-                </button>
+                <!-- Kurze, verständliche Info-Box -->
+                <div class="mb-4 p-3 bg-white/5 rounded-lg border border-gemini-gold/30 text-center shadow-inner">
+                    <p class="text-sm text-gray-300">
+                        💡 <strong>So funktioniert's:</strong> Button klicken (Text wird kopiert) → Im neuen Fenster einfügen (<kbd class="font-mono bg-white/10 px-1 rounded text-gemini-gold">Strg+V</kbd>).
+                    </p>
+                </div>
+
+                <!-- Buttons -->
+                <div class="flex flex-col space-y-3">
+                    <button onclick="copyAndOpenGemini(decodeURIComponent('${encodeURIComponent(optimizationInstruction)}'))"
+                       class="w-full text-center bg-gemini-teal hover:bg-gemini-teal/80 text-deep-blue font-bold py-3 px-4 rounded-lg shadow-md transition duration-200 flex items-center justify-center gap-2 group">
+                        <span class="group-hover:scale-110 transition-transform">🚀</span> Prompt kopieren & optimieren
+                    </button>
+                    
+                    <button onclick="copyAndOpenGemini(decodeURIComponent('${encodeURIComponent(explanationInstruction)}'))"
+                       class="w-full text-center bg-gemini-gold hover:bg-gemini-gold/80 text-deep-blue font-bold py-3 px-4 rounded-lg shadow-md transition duration-200 flex items-center justify-center gap-2 group">
+                        <span class="group-hover:scale-110 transition-transform">✨</span> Frage kopieren & Erklärung holen
+                    </button>
+                </div>
             `;
 
             document.getElementById('detail-placeholder').classList.add('hidden');
