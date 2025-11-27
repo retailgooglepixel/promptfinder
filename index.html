@@ -252,9 +252,9 @@
         let activePromptId = null;
 
         // --- Gemini API Konfiguration ---
-        // HINWEIS: Modell wurde auf gemini-1.5-flash aktualisiert, da 2.5 noch nicht öffentlich verfügbar ist.
-        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=";
-        const API_KEY = "AIzaSyDQrhe4eRJ93T1Z25JHyoAPkUarA0HbHHk"; 
+        // WICHTIG: Auf gemini-2.5-flash gewechselt, um mögliche Probleme mit der Freigabe des Preview-Modells zu umgehen.
+        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=";
+        const API_KEY = ""; // Canvas Runtime provides this
 
         // 1. Hilfsfunktion für die API-Kommunikation mit Backoff
         async function fetchWithBackoff(url, payload, retries = 3, delay = 1000) {
