@@ -15,6 +15,7 @@
                         'deep-blue': '#02042A', // Tiefer Blauton für den Hintergrund
                         'gemini-gold': '#FBBF24', // Goldener Akzent
                         'gemini-teal': '#00ADB5', // Akzentfarbe
+                        'gemini-red': '#EF4444', // Fehlerfarbe
                     },
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
@@ -121,7 +122,8 @@
                         <p id="detail-explanation"></p>
 
                         <!-- Gemini API Features -->
-                        <div class="flex flex-col space-y-3 mt-4">
+                        <div id="api-features-container" class="flex flex-col space-y-3 mt-4">
+                            <!-- Buttons or Error message here -->
                             <button id="optimize-prompt-btn"
                                     class="w-full bg-gemini-teal hover:bg-gemini-teal/80 text-deep-blue font-bold py-2 px-4 rounded-lg shadow-md transition duration-200 disabled:opacity-50"
                                     onclick="generateOptimizedPrompt()">
@@ -252,8 +254,8 @@
         let activePromptId = null;
 
         // --- Gemini API Konfiguration ---
-        // WICHTIG: Auf gemini-2.5-flash gewechselt, um mögliche Probleme mit der Freigabe des Preview-Modells zu umgehen.
-        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=";
+        // FIX: Zurücksetzen auf die explizite Preview-URL (gemini-2.5-flash-preview-09-2025), da diese oft von der Laufzeitumgebung für die Schlüssel-Injektion benötigt wird, um 403-Fehler zu vermeiden.
+        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=";
         const API_KEY = ""; // Canvas Runtime provides this
 
         // 1. Hilfsfunktion für die API-Kommunikation mit Backoff
@@ -287,9 +289,24 @@
             }
         }
 
+        // --- Platzhalter-Funktion bei Berechtigungsproblemen ---
+        function showApiErrorPlaceholder() {
+            const container = document.getElementById('api-features-container');
+            container.innerHTML = `
+                <div class="bg-gemini-red/20 border border-gemini-red p-4 rounded-lg text-sm">
+                    <p class="font-bold text-gemini-red mb-2">⚠ KI-Funktionen sind aktuell DEAKTIVIERT</p>
+                    <p class="text-gray-300">Es liegt ein Berechtigungsproblem (403 Forbidden) mit der Gemini API-Freigabe der Hosting-Umgebung vor. Die Interaktivität kann nicht demonstriert werden. Die Prompts und Erklärungen dienen weiterhin als Lesebeispiele.</p>
+                </div>
+            `;
+            document.getElementById('output-area').classList.add('hidden');
+        }
+
         // 2. Gemini Feature: Prompt Optimierer
         async function generateOptimizedPrompt() {
             if (!activePromptId) return;
+
+            // Führen Sie die KI-Funktion NICHT aus, wenn ein bekannter Fehler vorliegt
+            if (document.getElementById('api-features-container').innerHTML.includes('DEAKTIVIERT')) return;
             
             const currentPrompts = ALL_CONTENT[activeSeason].prompts;
             const promptData = currentPrompts.find(p => p.id === activePromptId);
@@ -316,6 +333,7 @@
             const payload = {
                 contents: [{ parts: [{ text: userQuery }] }],
                 systemInstruction: { parts: [{ text: "Du bist ein KI-Prompt-Experte. Deine Aufgabe ist es, kurze Anfragen in hochdetaillierte Anweisungen umzuwandeln. Antworte in Deutsch." }] }
+                // FIX: tools: [{"google_search": {} }] entfernt, um den API-Pfad zu vereinfachen
             };
 
             try {
@@ -323,24 +341,30 @@
                 const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "Fehler beim Generieren des Prompts. (Keine Textausgabe)";
                 outputText.textContent = text.trim();
             } catch (error) {
-                // Bei 403-Fehlern spezifische Meldung ausgeben
+                // Bei 403-Fehlern die API-Fehlermeldung anzeigen und die API-Funktionen deaktivieren
                 if (error.message.includes('403')) {
-                    outputText.textContent = `Fehler beim Abrufen der KI-Antwort: API call failed with status: 403 (Forbidden). Dies deutet auf ein Berechtigungsproblem hin. Bitte stellen Sie sicher, dass Ihr Projekt für die Gemini API freigeschaltet ist.`;
+                    showApiErrorPlaceholder(); // Deaktiviert die Buttons
+                    outputText.textContent = `Fehler: Die KI-Funktionalität konnte aufgrund von Berechtigungsproblemen nicht ausgeführt werden. (403 Forbidden)`;
                 } else {
                     outputText.textContent = `Fehler beim Abrufen der KI-Antwort: ${error.message}`;
                 }
                 console.error("Gemini API Error:", error);
             } finally {
-                // UI-Update: Loading beenden und Buttons reaktivieren
+                // UI-Update: Loading beenden und Buttons reaktivieren (falls nicht deaktiviert)
                 outputLoading.classList.add('hidden');
-                document.getElementById('optimize-prompt-btn').disabled = false;
-                document.getElementById('ai-explanation-btn').disabled = false;
+                if (!document.getElementById('api-features-container').innerHTML.includes('DEAKTIVIERT')) {
+                    document.getElementById('optimize-prompt-btn').disabled = false;
+                    document.getElementById('ai-explanation-btn').disabled = false;
+                }
             }
         }
 
         // 3. Gemini Feature: KI-Erklärung
         async function generateAiExplanation() {
             if (!activePromptId) return;
+
+            // Führen Sie die KI-Funktion NICHT aus, wenn ein bekannter Fehler vorliegt
+            if (document.getElementById('api-features-container').innerHTML.includes('DEAKTIVIERT')) return;
 
             const currentPrompts = ALL_CONTENT[activeSeason].prompts;
             const promptData = currentPrompts.find(p => p.id === activePromptId);
@@ -367,6 +391,7 @@
             const payload = {
                 contents: [{ parts: [{ text: userQuery }] }],
                 systemInstruction: { parts: [{ text: "Du bist ein Google KI-Experte. Deine Antwort muss kurz, präzise und überzeugend sein. Antworte in Deutsch." }] }
+                // FIX: tools: [{"google_search": {} }] entfernt, um den API-Pfad zu vereinfachen
             };
 
             try {
@@ -374,18 +399,21 @@
                 const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "Fehler beim Generieren der Erklärung. (Keine Textausgabe)";
                 outputText.textContent = text.trim();
             } catch (error) {
-                // Bei 403-Fehlern spezifische Meldung ausgeben
+                // Bei 403-Fehlern die API-Fehlermeldung anzeigen und die API-Funktionen deaktivieren
                 if (error.message.includes('403')) {
-                    outputText.textContent = `Fehler beim Abrufen der KI-Antwort: API call failed with status: 403 (Forbidden). Dies deutet auf ein Berechtigungsproblem hin. Bitte stellen Sie sicher, dass Ihr Projekt für die Gemini API freigeschaltet ist.`;
+                    showApiErrorPlaceholder(); // Deaktiviert die Buttons
+                    outputText.textContent = `Fehler: Die KI-Funktionalität konnte aufgrund von Berechtigungsproblemen nicht ausgeführt werden. (403 Forbidden)`;
                 } else {
                     outputText.textContent = `Fehler beim Abrufen der KI-Antwort: ${error.message}`;
                 }
                 console.error("Gemini API Error:", error);
             } finally {
-                // UI-Update: Loading beenden und Buttons reaktivieren
+                // UI-Update: Loading beenden und Buttons reaktivieren (falls nicht deaktiviert)
                 outputLoading.classList.add('hidden');
-                document.getElementById('optimize-prompt-btn').disabled = false;
-                document.getElementById('ai-explanation-btn').disabled = false;
+                if (!document.getElementById('api-features-container').innerHTML.includes('DEAKTIVIERT')) {
+                    document.getElementById('optimize-prompt-btn').disabled = false;
+                    document.getElementById('ai-explanation-btn').disabled = false;
+                }
             }
         }
 
