@@ -90,9 +90,10 @@
                         
                         <!-- Hinweis Box -->
                         <div id="output-area" class="mt-6 p-4 bg-deep-blue rounded-lg border border-gray-600/50">
-                            <p id="output-title" class="font-bold text-gemini-gold mb-2">💡 Info zur Funktion</p>
+                            <p id="output-title" class="font-bold text-gemini-gold mb-2">💡 Tipp zur Nutzung</p>
                             <div id="output-text" class="text-gray-400 text-sm">
-                                Um API-Schlüssel-Probleme zu vermeiden, öffnen diese Buttons direkt die <strong>Gemini Web-App</strong> in einem neuen Tab. Der passende Befehl ist bereits für dich vorgetippt!
+                                Da Gemini aus Sicherheitsgründen keine Texte per Link annimmt, <strong>kopieren wir den Text automatisch</strong> für dich. <br><br>
+                                Einfach im neuen Fenster <code>Strg + V</code> (oder Rechtsklick -> Einfügen) drücken!
                             </div>
                         </div>
 
@@ -245,31 +246,42 @@
             loadFaqs([]);
         }
 
+        // --- Neue Logik: Kopieren & Öffnen ---
+        function copyAndOpenGemini(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Bestätigung für den Nutzer
+                alert("✨ Text erfolgreich kopiert!\n\nGemini öffnet sich jetzt. Drücke dort einfach 'Strg + V' (oder Rechtsklick -> Einfügen), um den Prompt zu nutzen.");
+                window.open("https://gemini.google.com/app", "_blank");
+            }).catch(err => {
+                console.error('Fehler beim Kopieren:', err);
+                // Fallback, falls Kopieren nicht erlaubt ist
+                window.open("https://gemini.google.com/app", "_blank");
+            });
+        }
+
         function showPromptDetails(id) {
             const promptData = ALL_CONTENT[activeSeason].prompts.find(p => p.id === id);
             if (!promptData) return;
             activePromptId = id;
 
-            // 1. Link für "Super-Prompt" generieren
+            // Texte vorbereiten
             const optimizationInstruction = `Ich habe diesen Prompt: "${promptData.prompt}". Bitte optimiere ihn zu einem detaillierten "Super-Prompt" für das Modell ${promptData.model}, damit ich das beste Ergebnis erhalte.`;
-            const optimizedPromptLink = `https://gemini.google.com/app?q=${encodeURIComponent(optimizationInstruction)}`;
-
-            // 2. Link für "KI-Erklärung" generieren
             const explanationInstruction = `Erkläre mir kurz und verständlich (maximal 5 Sätze), warum das Google Modell "${promptData.model}" besonders gut für den Anwendungsfall "${promptData.title}" auf einem Google Pixel geeignet ist.`;
-            const explanationLink = `https://gemini.google.com/app?q=${encodeURIComponent(explanationInstruction)}`;
 
-            // 3. UI Update: Beide Buttons einfügen
+            // UI Update: Buttons rufen copyAndOpenGemini auf
             const apiContainer = document.getElementById('api-features-container');
+            
+            // WICHTIG: Wir nutzen encodeURIComponent, damit Sonderzeichen im Text (wie "Anführungszeichen") das HTML nicht kaputt machen
             apiContainer.innerHTML = `
-                <a href="${optimizedPromptLink}" target="_blank"
+                <button onclick="copyAndOpenGemini(decodeURIComponent('${encodeURIComponent(optimizationInstruction)}'))"
                    class="w-full text-center bg-gemini-teal hover:bg-gemini-teal/80 text-deep-blue font-bold py-3 px-4 rounded-lg shadow-md transition duration-200 flex items-center justify-center gap-2">
-                    <span>🚀</span> Prompt in Gemini optimieren <span class="text-xs opacity-75">(Extern)</span>
-                </a>
+                    <span>🚀</span> Prompt kopieren & optimieren
+                </button>
                 
-                <a href="${explanationLink}" target="_blank"
+                <button onclick="copyAndOpenGemini(decodeURIComponent('${encodeURIComponent(explanationInstruction)}'))"
                    class="w-full text-center bg-gemini-gold hover:bg-gemini-gold/80 text-deep-blue font-bold py-3 px-4 rounded-lg shadow-md transition duration-200 flex items-center justify-center gap-2">
-                    <span>✨</span> KI-Erklärung anfordern <span class="text-xs opacity-75">(Extern)</span>
-                </a>
+                    <span>✨</span> Frage kopieren & Erklärung holen
+                </button>
             `;
 
             document.getElementById('detail-placeholder').classList.add('hidden');
