@@ -252,8 +252,9 @@
         let activePromptId = null;
 
         // --- Gemini API Konfiguration ---
-        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=";
-        const API_KEY = ""; // Canvas Runtime provides this
+        // HINWEIS: Modell wurde auf gemini-1.5-flash aktualisiert, da 2.5 noch nicht öffentlich verfügbar ist.
+        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=";
+        const API_KEY = "AIzaSyDQrhe4eRJ93T1Z25JHyoAPkUarA0HbHHk"; 
 
         // 1. Hilfsfunktion für die API-Kommunikation mit Backoff
         async function fetchWithBackoff(url, payload, retries = 3, delay = 1000) {
@@ -272,7 +273,9 @@
                         delay *= 2; // Exponential backoff
                         continue;
                     } else {
-                        throw new Error(`API call failed with status: ${response.status}`);
+                        // Bei Fehlern wie 403, 400 oder 500 sofort abbrechen und Fehler werfen
+                        const errorText = await response.text();
+                        throw new Error(`API call failed with status: ${response.status}. Response: ${errorText}`);
                     }
                 } catch (error) {
                     if (i === retries - 1) {
@@ -317,10 +320,15 @@
 
             try {
                 const result = await fetchWithBackoff(API_URL, payload);
-                const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "Fehler beim Generieren des Prompts.";
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "Fehler beim Generieren des Prompts. (Keine Textausgabe)";
                 outputText.textContent = text.trim();
             } catch (error) {
-                outputText.textContent = `Fehler beim Abrufen der KI-Antwort: ${error.message}`;
+                // Bei 403-Fehlern spezifische Meldung ausgeben
+                if (error.message.includes('403')) {
+                    outputText.textContent = `Fehler beim Abrufen der KI-Antwort: API call failed with status: 403 (Forbidden). Dies deutet auf ein Berechtigungsproblem hin. Bitte stellen Sie sicher, dass Ihr Projekt für die Gemini API freigeschaltet ist.`;
+                } else {
+                    outputText.textContent = `Fehler beim Abrufen der KI-Antwort: ${error.message}`;
+                }
                 console.error("Gemini API Error:", error);
             } finally {
                 // UI-Update: Loading beenden und Buttons reaktivieren
@@ -363,10 +371,15 @@
 
             try {
                 const result = await fetchWithBackoff(API_URL, payload);
-                const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "Fehler beim Generieren der Erklärung.";
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "Fehler beim Generieren der Erklärung. (Keine Textausgabe)";
                 outputText.textContent = text.trim();
             } catch (error) {
-                outputText.textContent = `Fehler beim Abrufen der KI-Antwort: ${error.message}`;
+                // Bei 403-Fehlern spezifische Meldung ausgeben
+                if (error.message.includes('403')) {
+                    outputText.textContent = `Fehler beim Abrufen der KI-Antwort: API call failed with status: 403 (Forbidden). Dies deutet auf ein Berechtigungsproblem hin. Bitte stellen Sie sicher, dass Ihr Projekt für die Gemini API freigeschaltet ist.`;
+                } else {
+                    outputText.textContent = `Fehler beim Abrufen der KI-Antwort: ${error.message}`;
+                }
                 console.error("Gemini API Error:", error);
             } finally {
                 // UI-Update: Loading beenden und Buttons reaktivieren
